@@ -3,7 +3,7 @@
 
 set -e
 
-PROJECT_ROOT="/Users/borkiss../ag-botkit"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MONITOR_BIN="$PROJECT_ROOT/monitor/bin/monitor"
 MINIBOT_BIN="$PROJECT_ROOT/examples/minibot/target/release/minibot"
 MINIBOT_CONFIG="$PROJECT_ROOT/examples/minibot/config.yaml"
