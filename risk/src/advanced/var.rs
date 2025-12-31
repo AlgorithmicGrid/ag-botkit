@@ -8,7 +8,7 @@
 
 use crate::advanced::error::{AdvancedRiskError, Result};
 use chrono::{DateTime, Utc};
-use rand::Rng;
+use rand::SeedableRng;
 use rand_distr::{Distribution, Normal};
 use serde::{Deserialize, Serialize};
 use statrs::distribution::{ContinuousCDF, Normal as StatrsNormal};

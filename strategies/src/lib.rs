@@ -88,7 +88,7 @@ pub mod metrics;
 // Re-export main types
 pub use error::{StrategyError, StrategyResult};
 pub use types::{
-    Strategy, StrategyMetadata, StrategyParams,
+    StrategyMetadata, StrategyParams,
     Order, OrderId, OrderType, OrderStatus, Side, TimeInForce,
     Fill, Trade, Position,
     MarketTick, MarketData,
@@ -99,70 +99,39 @@ pub use coordinator::MultiMarketCoordinator;
 pub use metrics::{StrategyMetric, MetricType};
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use std::collections::HashMap;
 
 /// Base strategy trait that all strategies must implement
-///
-/// This trait defines the lifecycle hooks and event handlers that strategies
-/// use to respond to market data and execution events.
 #[async_trait]
 pub trait Strategy: Send + Sync {
-    /// Initialize the strategy
-    ///
-    /// Called once when the strategy is first loaded. Use this to set up
-    /// initial state, subscribe to markets, and validate parameters.
     async fn initialize(&mut self, ctx: &mut StrategyContext) -> StrategyResult<()>;
 
-    /// Process market data update
-    ///
-    /// Called whenever market data is received for a subscribed market.
-    /// This is the primary signal generation and trading logic entry point.
     async fn on_market_tick(
         &mut self,
         market_id: &str,
-        tick: &MarketTick,
+        tick: &types::MarketTick,
         ctx: &mut StrategyContext,
     ) -> StrategyResult<()>;
 
-    /// Handle order fill notification
-    ///
-    /// Called when an order is partially or fully filled.
     async fn on_fill(
         &mut self,
-        fill: &Fill,
+        fill: &types::Fill,
         ctx: &mut StrategyContext,
     ) -> StrategyResult<()>;
 
-    /// Handle order cancellation notification
-    ///
-    /// Called when an order is cancelled.
     async fn on_cancel(
         &mut self,
-        order_id: &OrderId,
+        order_id: &types::OrderId,
         ctx: &mut StrategyContext,
     ) -> StrategyResult<()>;
 
-    /// Periodic timer callback
-    ///
-    /// Called at regular intervals for housekeeping tasks like
-    /// risk checks, position rebalancing, or metric emission.
     async fn on_timer(
         &mut self,
         ctx: &mut StrategyContext,
     ) -> StrategyResult<()>;
 
-    /// Shutdown the strategy
-    ///
-    /// Called when the strategy is being stopped. Use this to clean up
-    /// resources, cancel open orders, and persist state.
     async fn shutdown(&mut self, ctx: &mut StrategyContext) -> StrategyResult<()>;
 
-    /// Get strategy metadata
-    ///
-    /// Returns information about the strategy including name, version,
-    /// and required parameters.
-    fn metadata(&self) -> StrategyMetadata;
+    fn metadata(&self) -> types::StrategyMetadata;
 }
 
 #[cfg(test)]

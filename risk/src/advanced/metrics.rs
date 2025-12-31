@@ -330,7 +330,7 @@ impl PerformanceMetrics {
     }
 
     /// Helper to annualize a daily return
-    fn annualize_return(daily_return: f64, num_days: usize) -> f64 {
+    fn annualize_return(daily_return: f64, _num_days: usize) -> f64 {
         // Compound return: (1 + r)^252 - 1
         (1.0 + daily_return).powf(252.0) - 1.0
     }
