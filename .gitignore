@@ -1,0 +1,39 @@
+# Build artifacts
+**/target/
+**/build/
+**/bin/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.out
+*.dSYM/
+
+# Dependencies
+**/node_modules/
+**/vendor/
+
+# IDEs and OS files
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temporary files
+*.log
+tmp/
+
+# Environment and secrets
+.env
+.env.local
+*.local.json
+!ag-botkit/.claude/settings.local.json
+
+# Rust specific (additional)
+Cargo.lock
+**/*.rs.bk
+
+# Go specific
+/monitor/monitor
