@@ -299,7 +299,17 @@ impl PerformanceMetrics {
             .sum::<f64>()
             / (self.returns.len() - 1) as f64;
 
-        Ok(variance.sqrt())
+        let std_dev = variance.sqrt();
+
+        // Check for near-zero standard deviation (numerical precision threshold)
+        const EPSILON: f64 = 1e-10;
+        if std_dev < EPSILON {
+            return Err(AdvancedRiskError::DivisionByZero(
+                "Standard deviation is effectively zero".to_string()
+            ));
+        }
+
+        Ok(std_dev)
     }
 
     /// Calculate downside deviation (only negative returns)
@@ -496,7 +506,8 @@ mod tests {
         let returns = vec![0.01; 20]; // Constant returns
         let metrics = PerformanceMetrics::new(returns, 0.02);
 
-        // Sharpe should error with zero volatility
-        assert!(metrics.sharpe_ratio().is_err());
+        // Sharpe should error with zero volatility (constant returns have std dev = 0)
+        let result = metrics.sharpe_ratio();
+        assert!(result.is_err(), "Expected error for zero volatility, got {:?}", result);
     }
 }

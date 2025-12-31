@@ -214,6 +214,7 @@ pub struct Fill {
 }
 
 impl Fill {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         order_id: Uuid,
         venue: impl Into<String>,

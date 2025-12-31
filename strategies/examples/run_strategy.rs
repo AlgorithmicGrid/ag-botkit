@@ -4,11 +4,11 @@
 //! with the ag-strategies framework.
 
 use ag_strategies::{
-    Strategy, StrategyContext, StrategyParams,
+    StrategyContext, StrategyParams,
     MultiMarketCoordinator,
-    impl::{MarketMakerStrategy, MarketMakerConfig},
     types::MarketTick,
 };
+use ag_strategies::r#impl::{MarketMakerStrategy, MarketMakerConfig};
 use ag_risk::RiskEngine;
 use std::sync::Arc;
 use parking_lot::Mutex;

@@ -30,6 +30,7 @@ dependencies = [
  "nalgebra 0.32.6",
  "parking_lot",
  "proptest",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "serde_yaml",

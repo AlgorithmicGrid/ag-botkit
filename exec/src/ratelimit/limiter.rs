@@ -4,9 +4,7 @@
 //! when communicating with exchanges. It uses a token bucket algorithm.
 
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter as GovRateLimiter};
-use nonzero_ext::nonzero;
 use std::num::NonZeroU32;
-use std::time::Duration;
 
 use crate::error::{ExecError, ExecResult};
 use crate::order::VenueId;
@@ -135,7 +133,8 @@ impl Default for RateLimiterConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio::time::{sleep, Instant};
+    use std::time::Duration;
+    use tokio::time::Instant;
 
     #[tokio::test]
     async fn test_rate_limiter_allows_requests() {

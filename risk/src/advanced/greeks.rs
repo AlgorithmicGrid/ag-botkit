@@ -422,8 +422,9 @@ mod tests {
             0.05,   // 5% risk-free rate
         ).unwrap();
 
-        // Delta for ATM call should be around 0.5
-        assert!(greeks.delta > 0.4 && greeks.delta < 0.6);
+        // Delta for ATM call should be around 0.5-0.65 (depends on r and σ)
+        // With r=5%, σ=20%, T=1y, ATM call delta ≈ 0.637
+        assert!(greeks.delta > 0.6 && greeks.delta < 0.65, "Call delta was {}", greeks.delta);
 
         // Gamma should be positive
         assert!(greeks.gamma > 0.0);
@@ -456,8 +457,9 @@ mod tests {
             0.05,
         ).unwrap();
 
-        // Delta for ATM put should be around -0.5
-        assert!(greeks.delta < -0.4 && greeks.delta > -0.6);
+        // Delta for ATM put should be around -0.35 to -0.4 (depends on r and σ)
+        // With r=5%, σ=20%, T=1y, ATM put delta ≈ -0.363 (call delta - 1)
+        assert!(greeks.delta < -0.35 && greeks.delta > -0.37, "Put delta was {}", greeks.delta);
 
         // Gamma should be positive
         assert!(greeks.gamma > 0.0);

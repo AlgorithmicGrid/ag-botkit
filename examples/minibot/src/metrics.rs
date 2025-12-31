@@ -1,12 +1,11 @@
 use anyhow::Result;
-use futures_util::{SinkExt, StreamExt};
+use futures_util::SinkExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Mutex;
 use tokio_tungstenite::{connect_async, tungstenite::Message, WebSocketStream, MaybeTlsStream};
 use tokio::net::TcpStream;
-use tracing::warn;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

@@ -85,6 +85,18 @@ pub mod context;
 pub mod coordinator;
 pub mod metrics;
 
+// Strategy implementations
+#[path = "../impl/mod.rs"]
+pub mod r#impl;
+
+// Signal generation
+#[path = "../signals/mod.rs"]
+pub mod signals;
+
+// Backtesting engine
+#[path = "../backtest/mod.rs"]
+pub mod backtest;
+
 // Re-export main types
 pub use error::{StrategyError, StrategyResult};
 pub use types::{

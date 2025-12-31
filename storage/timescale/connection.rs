@@ -1,6 +1,6 @@
-use crate::config::DatabaseConfig;
 use crate::error::{Result, StorageError};
-use deadpool_postgres::{Config, Manager, ManagerConfig, Pool, RecyclingMethod, Runtime};
+use crate::config::DatabaseConfig;
+use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
 use tokio_postgres::NoTls;
 use tracing::{debug, info};
 
@@ -13,8 +13,8 @@ impl ConnectionPool {
     /// Create a new connection pool
     pub async fn new(config: &DatabaseConfig) -> Result<Self> {
         info!(
-            "Creating connection pool to {}:{}/{}",
-            config.host, config.port, config.database
+            "Creating connection pool to {}:{}/{} (max_connections: {})",
+            config.host, config.port, config.database, config.max_connections
         );
 
         let mut pg_config = Config::new();
@@ -28,7 +28,10 @@ impl ConnectionPool {
             recycling_method: RecyclingMethod::Fast,
         });
 
-        // Create pool with max connections
+        // Set pool size limits
+        pg_config.pool = Some(deadpool_postgres::PoolConfig::new(config.max_connections));
+
+        // Create pool with configured max connections
         let pool = pg_config
             .create_pool(Some(Runtime::Tokio1), NoTls)
             .map_err(|e| StorageError::ConnectionError(e.to_string()))?;
@@ -86,7 +89,7 @@ impl ConnectionPool {
 
     /// Execute a schema migration script
     pub async fn execute_schema(&self, sql: &str) -> Result<()> {
-        let client = self.get().await?;
+        let mut client = self.get().await?;
 
         // Execute in a transaction
         let transaction = client

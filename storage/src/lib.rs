@@ -37,8 +37,21 @@ pub mod config;
 pub mod engine;
 pub mod error;
 pub mod execution;
-pub mod timescale;
 pub mod types;
+
+// Include timescale module from parent directory
+#[path = "../timescale/mod.rs"]
+pub mod timescale_impl;
+pub mod timescale {
+    pub use super::timescale_impl::*;
+}
+
+// Include retention module from parent directory
+#[path = "../retention/mod.rs"]
+pub mod retention_impl;
+pub mod retention {
+    pub use super::retention_impl::*;
+}
 
 // Re-export main types
 pub use config::{
@@ -53,9 +66,8 @@ pub use types::{
     OrderType, PositionSnapshot, RetentionReport, Side,
 };
 
-// Re-export retention module types
-pub mod retention;
-pub use retention::{CompressionStatus, RetentionManager, StorageStats};
+// Re-export retention types
+pub use retention::{CompressionStatus, RetentionManager, RetentionScheduler, StorageStats};
 
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

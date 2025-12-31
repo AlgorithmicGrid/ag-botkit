@@ -1,6 +1,6 @@
 use crate::config::StorageConfig;
-use crate::error::{Result, StorageError};
-use crate::timescale::{ConnectionPool, QueryBuilder};
+use crate::error::Result;
+use crate::timescale::ConnectionPool;
 use crate::types::{Fill, Order, OrderFilters, PositionSnapshot};
 use chrono::{DateTime, Utc};
 use std::sync::Arc;
@@ -30,6 +30,10 @@ impl ExecutionStore {
 
         let client = self.pool.get().await?;
 
+        let side_str = order.side.to_string();
+        let order_type_str = order.order_type.to_string();
+        let status_str = order.status.to_string();
+
         client
             .execute(
                 r#"
@@ -47,11 +51,11 @@ impl ExecutionStore {
                     &order.timestamp,
                     &order.venue,
                     &order.market,
-                    &order.side.to_string(),
-                    &order.order_type.to_string(),
+                    &side_str,
+                    &order_type_str,
                     &order.price,
                     &order.size,
-                    &order.status.to_string(),
+                    &status_str,
                     &order.client_order_id,
                     &order.venue_order_id,
                     &order.time_in_force,
@@ -68,6 +72,8 @@ impl ExecutionStore {
 
         let client = self.pool.get().await?;
 
+        let side_str = fill.side.to_string();
+
         client
             .execute(
                 r#"
@@ -82,7 +88,7 @@ impl ExecutionStore {
                     &fill.order_id,
                     &fill.venue,
                     &fill.market,
-                    &fill.side.to_string(),
+                    &side_str,
                     &fill.price,
                     &fill.size,
                     &fill.fee,
@@ -137,50 +143,56 @@ impl ExecutionStore {
 
         let client = self.pool.get().await?;
 
-        let mut builder = QueryBuilder::new("orders")
-            .time_range(start, end)
-            .order_by("timestamp", true)
-            .limit(self.config.query.max_results);
+        // Build query manually with proper type handling
+        let mut query = String::from(
+            r#"
+            SELECT id, timestamp, venue, market, side, order_type,
+                   price, size, status, client_order_id, venue_order_id, time_in_force
+            FROM orders
+            WHERE timestamp >= $1 AND timestamp <= $2
+            "#
+        );
 
-        if let Some(venue) = filters.venue {
-            builder = builder.eq("venue", &venue);
+        let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = vec![&start, &end];
+        let mut param_idx = 3;
+
+        let mut optional_strings: Vec<String> = Vec::new();
+
+        if let Some(ref venue) = filters.venue {
+            query.push_str(&format!(" AND venue = ${}", param_idx));
+            param_idx += 1;
+            optional_strings.push(venue.clone());
         }
 
-        if let Some(market) = filters.market {
-            builder = builder.eq("market", &market);
+        if let Some(ref market) = filters.market {
+            query.push_str(&format!(" AND market = ${}", param_idx));
+            param_idx += 1;
+            optional_strings.push(market.clone());
         }
 
         if let Some(side) = filters.side {
-            builder = builder.eq("side", &side.to_string());
+            query.push_str(&format!(" AND side = ${}", param_idx));
+            param_idx += 1;
+            optional_strings.push(side.to_string());
         }
 
         if let Some(status) = filters.status {
-            builder = builder.eq("status", &status.to_string());
+            query.push_str(&format!(" AND status = ${}", param_idx));
+            param_idx += 1;
+            optional_strings.push(status.to_string());
         }
 
-        if let Some(client_order_id) = filters.client_order_id {
-            builder = builder.eq("client_order_id", &client_order_id);
+        if let Some(ref client_order_id) = filters.client_order_id {
+            query.push_str(&format!(" AND client_order_id = ${}", param_idx));
+            optional_strings.push(client_order_id.clone());
         }
 
-        let (query, param_strings) = builder.build_select(&[
-            "id",
-            "timestamp",
-            "venue",
-            "market",
-            "side",
-            "order_type",
-            "price",
-            "size",
-            "status",
-            "client_order_id",
-            "venue_order_id",
-            "time_in_force",
-        ]);
+        query.push_str(&format!(" ORDER BY timestamp DESC LIMIT {}", self.config.query.max_results));
 
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_strings
-            .iter()
-            .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
+        // Add optional params
+        for opt_str in &optional_strings {
+            params.push(opt_str);
+        }
 
         let rows = client.query(&query, &params).await?;
 

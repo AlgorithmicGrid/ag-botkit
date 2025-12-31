@@ -4,7 +4,7 @@ use crate::timescale::ConnectionPool;
 use crate::types::RetentionReport;
 use chrono::{Duration, Utc};
 use std::sync::Arc;
-use tracing::{info, warn};
+use tracing::info;
 
 /// Data retention manager
 pub struct RetentionManager {

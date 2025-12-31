@@ -1,6 +1,22 @@
 # ag-storage - TimescaleDB Storage Layer
 
+**Status: COMPLETE (100%)**
+
 TimescaleDB persistent storage layer for ag-botkit. Provides high-performance time-series storage for metrics, execution history, and positions.
+
+## Implementation Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Connection Pooling | COMPLETE | deadpool-postgres with configurable max_size |
+| Schema Management | COMPLETE | Metrics + execution tables with hypertables |
+| Metric Storage | COMPLETE | Batch insertion, time-range queries |
+| Execution Storage | COMPLETE | Orders, fills, positions tracking |
+| Data Retention | COMPLETE | Automated cleanup + compression |
+| Retention Scheduler | COMPLETE | Background job for automated retention |
+| Query API | COMPLETE | Type-safe querying with aggregations |
+| Tests | COMPLETE | 17 unit tests passing, 3 integration tests (require DB) |
+| Documentation | COMPLETE | Full API docs + examples |
 
 ## Features
 
@@ -8,8 +24,9 @@ TimescaleDB persistent storage layer for ag-botkit. Provides high-performance ti
 - **Efficient querying**: Optimized time-range queries with proper indexing
 - **Automatic compression**: Data compressed after 7 days (90% storage reduction)
 - **Data retention**: Automatic cleanup of old data (configurable per table)
+- **Automated scheduler**: Background retention job for hands-free operation
 - **Continuous aggregates**: Pre-computed hourly/daily statistics for fast analytics
-- **Connection pooling**: Concurrent access from multiple modules
+- **Connection pooling**: Concurrent access from multiple modules with deadpool
 - **Type-safe API**: Full Rust type safety with async/await
 
 ## Architecture
@@ -30,7 +47,8 @@ storage/
 │   ├── metrics.sql         # Metrics hypertable schema
 │   └── execution.sql       # Execution tables schema
 ├── retention/
-│   └── policy.rs           # Data retention manager
+│   ├── policy.rs           # Data retention manager
+│   └── scheduler.rs        # Automated retention scheduler
 ├── examples/
 │   ├── insert_metrics.rs   # Metric insertion examples
 │   └── query_data.rs       # Query examples

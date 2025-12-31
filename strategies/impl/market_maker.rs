@@ -254,11 +254,15 @@ impl Strategy for MarketMakerStrategy {
             let metric = builder.order_filled(&fill.market);
             ctx.emit_metric(metric).await?;
 
-            if let Some(pos) = ctx.get_position(&fill.market) {
-                let pnl_metric = builder.pnl(&fill.market, pos.unrealized_pnl);
+            // Extract position values to avoid borrow checker issues
+            let position_data = ctx.get_position(&fill.market)
+                .map(|pos| (pos.unrealized_pnl, pos.size));
+
+            if let Some((unrealized_pnl, position_size)) = position_data {
+                let pnl_metric = builder.pnl(&fill.market, unrealized_pnl);
                 ctx.emit_metric(pnl_metric).await?;
 
-                let position_metric = builder.position_size(&fill.market, pos.size);
+                let position_metric = builder.position_size(&fill.market, position_size);
                 ctx.emit_metric(position_metric).await?;
             }
         }

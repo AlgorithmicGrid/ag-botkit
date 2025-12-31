@@ -4,7 +4,7 @@
 //! Documentation: https://docs.polymarket.com
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 use hmac::{Hmac, Mac};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use crate::adapters::venue_adapter::{VenueAdapter, VenueConfig};
 use crate::error::{ExecError, ExecResult};
 use crate::order::{
-    CancelAck, Liquidity, Order, OrderAck, OrderId, OrderStatus, OrderType, Side, TimeInForce,
+    CancelAck, Order, OrderAck, OrderId, OrderStatus, OrderType, Side,
     VenueId,
 };
 
@@ -282,12 +282,11 @@ impl VenueAdapter for PolymarketAdapter {
         // Note: This is simplified - in production you'd need full order reconstruction
         let orders = pm_orders
             .into_iter()
-            .map(|_pm_order| {
+            .flat_map(|_pm_order| {
                 // Simplified conversion - in production this would need complete mapping
                 // For now, return empty vec as this is primarily for demonstration
                 Vec::new()
             })
-            .flatten()
             .collect();
 
         Ok(orders)
@@ -296,8 +295,8 @@ impl VenueAdapter for PolymarketAdapter {
     async fn modify_order(
         &mut self,
         order_id: &OrderId,
-        new_price: Option<f64>,
-        new_size: Option<f64>,
+        _new_price: Option<f64>,
+        _new_size: Option<f64>,
     ) -> ExecResult<OrderAck> {
         // Polymarket typically requires cancel + replace for modifications
         // This is a simplified implementation
@@ -349,15 +348,17 @@ struct PolymarketOrderResponse {
     order_id: String,
     status: String,
     #[serde(default)]
+    #[allow(dead_code)]
     filled_size: String,
     #[serde(default)]
+    #[allow(dead_code)]
     avg_fill_price: Option<String>,
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::order::{MarketId, VenueId};
+    use crate::order::{MarketId, TimeInForce, VenueId};
 
     #[test]
     fn test_polymarket_adapter_creation() {

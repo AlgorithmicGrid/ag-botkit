@@ -35,6 +35,9 @@ parking_lot = "0.12"  # Better synchronization primitives
 statrs = "0.16"
 nalgebra = "0.32"
 
+# Random number generation
+rand = "0.8"
+
 # Internal dependencies
 ag-risk = { path = "../risk" }
 

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
 use futures_util::{SinkExt, StreamExt};
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -16,7 +15,7 @@ mod rtds;
 
 use config::Config;
 use metrics::{MetricSender, MetricType};
-use rtds::{RtdsMessage, SubscriptionMessage};
+use rtds::RtdsMessage;
 
 #[derive(Parser, Debug)]
 #[clap(name = "minibot", about = "Polymarket RTDS demo bot")]
@@ -225,7 +224,7 @@ async fn handle_message(
     text: &str,
     state: &Arc<RwLock<BotState>>,
     metric_sender: &Arc<MetricSender>,
-    config: &Config,
+    _config: &Config,
 ) -> Result<()> {
     // Parse RTDS message
     let rtds_msg: RtdsMessage = serde_json::from_str(text)?;

@@ -206,10 +206,12 @@ impl StressTestEngine {
             ));
         }
 
-        let mut worst_scenario = String::new();
-        let mut max_loss = 0.0;
-        let mut best_scenario = String::new();
-        let mut max_gain = 0.0;
+        // Initialize with first result to handle all-negative or all-positive scenarios
+        let first_result = &results[0];
+        let mut worst_scenario = first_result.scenario_name.clone();
+        let mut max_loss = first_result.portfolio_impact;
+        let mut best_scenario = first_result.scenario_name.clone();
+        let mut max_gain = first_result.portfolio_impact;
         let mut total_impact = 0.0;
 
         for result in results {

@@ -3,7 +3,7 @@
 use crate::{StrategyError, StrategyResult, StrategyParams};
 use crate::types::{Order, OrderId, Position, MarketId};
 use crate::metrics::StrategyMetric;
-use ag_risk::{RiskEngine, RiskContext, RiskDecision};
+use ag_risk::{RiskEngine, RiskContext};
 use std::collections::HashMap;
 use std::sync::Arc;
 use parking_lot::Mutex;
@@ -14,6 +14,12 @@ use chrono::Utc;
 pub struct MockExecutionEngine {
     orders: HashMap<OrderId, Order>,
     next_order_id: u64,
+}
+
+impl Default for MockExecutionEngine {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MockExecutionEngine {

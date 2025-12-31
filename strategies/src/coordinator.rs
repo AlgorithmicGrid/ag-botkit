@@ -3,8 +3,6 @@
 use crate::{Strategy, StrategyError, StrategyResult, StrategyContext};
 use crate::types::{MarketTick, Fill, OrderId, Position};
 use std::collections::HashMap;
-use std::sync::Arc;
-use parking_lot::Mutex;
 
 /// Multi-market coordinator
 ///
@@ -56,7 +54,7 @@ impl MultiMarketCoordinator {
         for market in &markets {
             self.market_subscriptions
                 .entry(market.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(strategy_id.clone());
         }
 
@@ -256,6 +254,8 @@ mod tests {
     use async_trait::async_trait;
     use chrono::Utc;
     use ag_risk::RiskEngine;
+    use std::sync::Arc;
+    use parking_lot::Mutex;
 
     struct TestStrategy {
         ticks_received: usize,

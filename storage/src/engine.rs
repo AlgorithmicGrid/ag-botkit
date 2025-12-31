@@ -1,6 +1,6 @@
 use crate::config::StorageConfig;
 use crate::error::{Result, StorageError};
-use crate::timescale::{ConnectionPool, QueryBuilder};
+use crate::timescale::ConnectionPool;
 use crate::types::{AggregatedMetric, Aggregation, MetricPoint};
 use chrono::{DateTime, Duration, Utc};
 use std::collections::HashMap;
@@ -102,7 +102,7 @@ impl StorageEngine {
         let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = Vec::new();
         let mut param_idx = 1;
 
-        for (i, metric) in metrics.iter().enumerate() {
+        for (i, _metric) in metrics.iter().enumerate() {
             if i > 0 {
                 query.push_str(", ");
             }
@@ -193,23 +193,39 @@ impl StorageEngine {
 
         let client = self.pool.get().await?;
 
-        let mut builder = QueryBuilder::new("metrics")
-            .time_range(start, end)
-            .eq("metric_name", metric_name)
-            .order_by("timestamp", false)
-            .limit(self.config.query.max_results);
+        // Build query manually with proper type handling
+        let mut query = String::from(
+            "SELECT timestamp, metric_name, value, labels FROM metrics WHERE timestamp >= $1 AND timestamp <= $2 AND metric_name = $3"
+        );
 
-        if let Some(labels) = labels {
-            builder = builder.labels(&labels);
+        let mut param_idx = 4;
+        let label_conditions = if let Some(ref labels) = labels {
+            labels.keys().map(|key| {
+                    let cond = format!(" AND labels->>'{}' = ${}", key, param_idx);
+                    param_idx += 1;
+                    cond
+                })
+                .collect::<Vec<_>>()
+                .join("")
+        } else {
+            String::new()
+        };
+
+        query.push_str(&label_conditions);
+        query.push_str(&format!(" ORDER BY timestamp ASC LIMIT {}", self.config.query.max_results));
+
+        // Build parameters vector
+        let mut params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = vec![&start, &end, &metric_name];
+
+        let label_values: Vec<String> = if let Some(ref labels) = labels {
+            labels.values().cloned().collect()
+        } else {
+            Vec::new()
+        };
+
+        for label_val in &label_values {
+            params.push(label_val);
         }
-
-        let (query, param_strings) = builder.build_select(&["timestamp", "metric_name", "value", "labels"]);
-
-        // Convert param strings to proper types
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = param_strings
-            .iter()
-            .map(|s| s as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
 
         let rows = client.query(&query, &params).await?;
 
@@ -253,8 +269,7 @@ impl StorageEngine {
         // Convert bucket_size to PostgreSQL interval
         let bucket_interval = format!("{} seconds", bucket_size.num_seconds());
 
-        let query = format!(
-            r#"
+        let query = r#"
             SELECT
                 time_bucket($1, timestamp) AS bucket,
                 metric_name,
@@ -272,8 +287,7 @@ impl StorageEngine {
             GROUP BY bucket, metric_name, labels
             ORDER BY bucket DESC
             LIMIT $5
-            "#
-        );
+            "#.to_string();
 
         let rows = client
             .query(
@@ -327,6 +341,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
+    #[ignore] // Requires running TimescaleDB
     async fn test_metric_buffering() {
         let config = StorageConfig::default();
         let mut engine = StorageEngine::new(config).await.unwrap();

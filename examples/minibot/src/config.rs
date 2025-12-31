@@ -14,19 +14,24 @@ pub struct Config {
 pub struct RtdsConfig {
     pub endpoint: String,
     pub ping_interval_sec: u64,
+    #[allow(dead_code)]
     pub reconnect_delay_sec: u64,
+    #[allow(dead_code)]
     pub subscribe_topics: Vec<MarketSubscription>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MarketSubscription {
+    #[allow(dead_code)]
     pub market: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct MonitorConfig {
     pub endpoint: String,
+    #[allow(dead_code)]
     pub buffer_size: usize,
+    #[allow(dead_code)]
     pub reconnect_delay_sec: u64,
 }
 

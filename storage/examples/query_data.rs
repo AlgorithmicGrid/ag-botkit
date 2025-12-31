@@ -90,7 +90,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     if !recent_metrics.is_empty() {
         println!("   Sample metrics:");
         for metric in recent_metrics.iter().take(3) {
-            let market = metric.labels.get("market_id").unwrap_or(&"unknown".to_string());
+            let market = metric.labels.get("market_id").map(|s| s.as_str()).unwrap_or("unknown");
             println!("     Market {}: size = {}", market, metric.value);
         }
     }

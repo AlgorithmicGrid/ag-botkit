@@ -314,11 +314,15 @@ impl Strategy for CrossMarketArbStrategy {
         // Emit periodic metrics
         if let Some(ref builder) = self.metric_builder {
             for market_id in &[&self.market_a, &self.market_b] {
-                if let Some(pos) = ctx.get_position(market_id) {
-                    let pnl_metric = builder.pnl(market_id, pos.unrealized_pnl);
+                // Extract position values to avoid borrow checker issues
+                let position_data = ctx.get_position(market_id)
+                    .map(|pos| (pos.unrealized_pnl, pos.size));
+
+                if let Some((unrealized_pnl, position_size)) = position_data {
+                    let pnl_metric = builder.pnl(market_id, unrealized_pnl);
                     ctx.emit_metric(pnl_metric).await?;
 
-                    let position_metric = builder.position_size(market_id, pos.size);
+                    let position_metric = builder.position_size(market_id, position_size);
                     ctx.emit_metric(position_metric).await?;
                 }
             }
