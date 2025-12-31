@@ -1,0 +1,27 @@
+# Multi-Market Risk Policy
+#
+# This policy demonstrates per-market position limits with different thresholds.
+
+policies:
+  # High-confidence market: larger position allowed
+  - type: PositionLimit
+    market_id: "0xhigh_confidence"
+    max_size: 2000.0
+
+  # Medium-confidence market: moderate position
+  - type: PositionLimit
+    market_id: "0xmedium_confidence"
+    max_size: 1000.0
+
+  # Low-confidence market: small position
+  - type: PositionLimit
+    market_id: "0xlow_confidence"
+    max_size: 200.0
+
+  # Total inventory limit across all markets
+  - type: InventoryLimit
+    max_value_usd: 15000.0
+
+  # Kill switch
+  - type: KillSwitch
+    enabled: false

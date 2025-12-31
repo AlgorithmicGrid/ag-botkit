@@ -1,0 +1,16 @@
+# Aggressive Risk Policy
+#
+# This policy allows higher risk exposure for active trading strategies.
+
+policies:
+  # Higher position limits
+  - type: PositionLimit
+    max_size: 5000.0
+
+  # Larger inventory allowance
+  - type: InventoryLimit
+    max_value_usd: 50000.0
+
+  # Kill switch disabled
+  - type: KillSwitch
+    enabled: false

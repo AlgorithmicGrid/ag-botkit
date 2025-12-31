@@ -1,0 +1,16 @@
+# Minibot Configuration for Polymarket
+
+rtds:
+  endpoint: "wss://ws-live-data.polymarket.com"
+  ping_interval_sec: 5
+  reconnect_delay_sec: 2
+  subscribe_topics: []  # Not used - subscriptions hardcoded in main.rs
+  # Subscribed topics: crypto_prices (prices), activity (trades)
+
+monitor:
+  endpoint: "ws://localhost:8080/metrics"
+  buffer_size: 1000
+  reconnect_delay_sec: 1
+
+risk:
+  policy_file: "risk/examples/example_policy.yaml"

@@ -1,0 +1,14 @@
+/Users/borkiss../ag-botkit/examples/minibot/target/release/deps/serde-097653edb8a8c077.d: /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/borkiss../ag-botkit/examples/minibot/target/release/build/serde-d226e7a5d70b6c62/out/private.rs
+
+/Users/borkiss../ag-botkit/examples/minibot/target/release/deps/libserde-097653edb8a8c077.rlib: /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/borkiss../ag-botkit/examples/minibot/target/release/build/serde-d226e7a5d70b6c62/out/private.rs
+
+/Users/borkiss../ag-botkit/examples/minibot/target/release/deps/libserde-097653edb8a8c077.rmeta: /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/borkiss../ag-botkit/examples/minibot/target/release/build/serde-d226e7a5d70b6c62/out/private.rs
+
+/Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/borkiss../.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/borkiss../ag-botkit/examples/minibot/target/release/build/serde-d226e7a5d70b6c62/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/borkiss../ag-botkit/examples/minibot/target/release/build/serde-d226e7a5d70b6c62/out

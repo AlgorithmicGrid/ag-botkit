@@ -1,0 +1,22 @@
+# Example Risk Policy Configuration for Polymarket Trading
+#
+# This policy file demonstrates the available risk controls
+# for the ag-risk engine.
+
+policies:
+  # Global position limit: no market position can exceed 1000 shares
+  - type: PositionLimit
+    max_size: 1000.0
+
+  # Market-specific limit: restrict position on specific market
+  - type: PositionLimit
+    market_id: "0x123abc"
+    max_size: 500.0
+
+  # Total inventory limit: aggregate exposure across all markets
+  - type: InventoryLimit
+    max_value_usd: 10000.0
+
+  # Kill switch: emergency stop (disabled by default)
+  - type: KillSwitch
+    enabled: false

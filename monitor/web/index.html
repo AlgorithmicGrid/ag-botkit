@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polymarket Monitor Dashboard</title>
+    <link rel="stylesheet" href="static/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.iife.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.24/dist/uPlot.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Polymarket Monitor Dashboard</h1>
+            <div class="status">
+                <span id="status-indicator" class="status-dot disconnected"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <div class="dashboard">
+            <!-- RTDS Lag Chart -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2>RTDS Lag (ms)</h2>
+                    <div class="chart-stats">
+                        <span>Current: <span id="lag-current">--</span>ms</span>
+                        <span>Avg: <span id="lag-avg">--</span>ms</span>
+                        <span>Max: <span id="lag-max">--</span>ms</span>
+                    </div>
+                </div>
+                <div id="lag-chart" class="chart"></div>
+            </div>
+
+            <!-- Messages Per Second Chart -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2>Messages Per Second</h2>
+                    <div class="chart-stats">
+                        <span>Current: <span id="mps-current">--</span></span>
+                        <span>Avg: <span id="mps-avg">--</span></span>
+                        <span>Max: <span id="mps-max">--</span></span>
+                    </div>
+                </div>
+                <div id="mps-chart" class="chart"></div>
+            </div>
+
+            <!-- Position Size Chart -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2>Position Size</h2>
+                    <div class="chart-stats">
+                        <span>Total: <span id="pos-total">--</span></span>
+                    </div>
+                </div>
+                <div id="position-chart" class="chart"></div>
+            </div>
+
+            <!-- Risk Decisions Chart -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2>Risk Decisions</h2>
+                    <div class="chart-stats">
+                        <span>Allowed: <span id="risk-allowed">0</span></span>
+                        <span>Blocked: <span id="risk-blocked">0</span></span>
+                    </div>
+                </div>
+                <div id="risk-chart" class="chart"></div>
+            </div>
+
+            <!-- Messages Received Counter -->
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h2>RTDS Messages Received</h2>
+                    <div class="chart-stats">
+                        <span>Total: <span id="msg-total">0</span></span>
+                        <span>Rate: <span id="msg-rate">0</span>/s</span>
+                    </div>
+                </div>
+                <div id="messages-chart" class="chart"></div>
+            </div>
+
+            <!-- Kill Switch Status -->
+            <div class="chart-container kill-switch">
+                <div class="chart-header">
+                    <h2>Kill Switch</h2>
+                </div>
+                <div class="kill-switch-status">
+                    <div id="kill-switch-indicator" class="kill-switch-indicator off">
+                        <span id="kill-switch-text">OFF</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>ag-botkit Monitor | Real-time Polymarket Trading Bot Metrics</p>
+        </footer>
+    </div>
+
+    <script src="static/app.js"></script>
+</body>
+</html>

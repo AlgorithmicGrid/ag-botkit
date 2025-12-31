@@ -1,0 +1,16 @@
+# Conservative Risk Policy
+#
+# This policy enforces strict limits suitable for low-risk strategies.
+
+policies:
+  # Very tight position limits
+  - type: PositionLimit
+    max_size: 500.0
+
+  # Conservative inventory cap
+  - type: InventoryLimit
+    max_value_usd: 5000.0
+
+  # Kill switch ready to enable
+  - type: KillSwitch
+    enabled: false

@@ -1,0 +1,25 @@
+[package]
+name = "ag-risk"
+version = "0.1.0"
+edition = "2021"
+authors = ["ag-botkit contributors"]
+description = "Policy-based risk evaluation and market simulation for Polymarket"
+license = "MIT"
+
+[lib]
+name = "ag_risk"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
+serde_json = "1.0"
+thiserror = "1.0"
+tokio = { version = "1.0", features = ["full"], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }
+
+[features]
+default = []
+async = ["tokio"]
