@@ -32,7 +32,6 @@ tmp/
 !ag-botkit/.claude/settings.local.json
 
 # Rust specific (additional)
-Cargo.lock
 **/*.rs.bk
 
 # Go specific
