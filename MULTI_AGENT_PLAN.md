@@ -1098,11 +1098,1008 @@ kill %1
 
 ---
 
-## 12. REVISION HISTORY
+## 12. ROADMAP ARCHITECTURE - PRODUCTION FEATURES
+
+### 12.1 Overview
+
+The following sections define the architecture for production roadmap features that extend beyond the MVP. Each feature introduces new specialized agents and integration points while maintaining strict module boundaries.
+
+**Roadmap Items:**
+1. CLOB API Integration (Order Placement)
+2. Persistent Storage (TimescaleDB)
+3. Advanced Risk Models (VaR, Greeks)
+4. Multi-Market Strategy Support
+5. Production Deployment Tooling
+
+**Guiding Principles:**
+- Architect as orchestrator - all work coordinated through MULTI_AGENT_PLAN.md
+- Specialized agents work exclusively in assigned directories
+- Clear interface contracts between all modules
+- Implementation order follows dependency graph
+- Each feature has measurable definition of done
+
+---
+
+### 12.2 Feature: CLOB API Integration (Order Placement)
+
+**Purpose:** Enable real order placement on Polymarket CLOB and other exchanges.
+
+**New Agent:** `exec-gateway`
+- **Location:** `.claude/agents/exec-gateway.md`
+- **Working Directory:** `exec/`
+- **Responsibilities:**
+  - Implement venue-specific API clients (Polymarket CLOB, CEX, DEX)
+  - Design order management system (OMS) with state tracking
+  - Build rate limiting and throttling infrastructure
+  - Create unified venue adapter interface
+  - Integrate pre-trade risk checks from risk/ module
+  - Emit execution metrics to monitor/ module
+
+**Module Structure:**
+```
+exec/
+├── src/
+│   ├── lib.rs              # ExecutionEngine API
+│   ├── engine.rs           # Main execution orchestration
+│   ├── order.rs            # Order types
+│   └── error.rs            # Error handling
+├── venues/
+│   ├── polymarket.rs       # Polymarket CLOB adapter
+│   ├── binance.rs          # CEX adapter (example)
+│   └── uniswap.rs          # DEX adapter (example)
+├── oms/
+│   ├── tracker.rs          # Order state tracking
+│   └── validator.rs        # Order validation
+├── ratelimit/
+│   ├── limiter.rs          # Rate limiter implementation
+│   └── config.rs           # Per-venue rate configs
+├── adapters/
+│   ├── trait.rs            # VenueAdapter trait
+│   └── normalize.rs        # Data normalization
+└── tests/
+```
+
+**Interface Contracts:**
+
+**Input from strategies/:**
+```rust
+pub struct Order {
+    pub venue: VenueId,
+    pub market: MarketId,
+    pub side: Side,
+    pub order_type: OrderType,
+    pub price: Option<f64>,
+    pub size: f64,
+    pub time_in_force: TimeInForce,
+}
+```
+
+**Output to strategies/:**
+```rust
+pub struct OrderAck {
+    pub order_id: OrderId,
+    pub status: OrderStatus,
+    pub timestamp: DateTime<Utc>,
+}
+
+pub struct Fill {
+    pub order_id: OrderId,
+    pub price: f64,
+    pub size: f64,
+    pub fee: f64,
+    pub timestamp: DateTime<Utc>,
+}
+```
+
+**Integration with risk/:**
+```rust
+// Pre-trade risk check before order submission
+let risk_decision = risk_engine.evaluate(&RiskContext {
+    market_id: order.market.clone(),
+    current_position: get_position(&order.market),
+    proposed_size: order.size,
+    inventory_value_usd: get_total_inventory(),
+}).await?;
+
+if !risk_decision.allowed {
+    return Err(ExecError::RiskRejected(risk_decision.violated_policies));
+}
+```
+
+**Integration with monitor/:**
+```json
+// Execution metrics emitted to monitor WebSocket
+{
+  "timestamp": 1735689600000,
+  "metric_type": "gauge",
+  "metric_name": "exec.latency_ms",
+  "value": 45.2,
+  "labels": {"venue": "polymarket", "market": "0x123abc"}
+}
+
+{
+  "timestamp": 1735689600100,
+  "metric_type": "counter",
+  "metric_name": "exec.orders_placed",
+  "value": 1,
+  "labels": {"venue": "polymarket", "side": "buy"}
+}
+```
+
+**Dependencies:**
+- Depends on: risk/ (pre-trade checks), monitor/ (metrics)
+- Depended on by: strategies/ (order execution)
+
+**Implementation Order:**
+1. Define VenueAdapter trait and ExecutionEngine API
+2. Implement Polymarket CLOB adapter
+3. Build OMS state tracking
+4. Integrate risk engine pre-trade checks
+5. Add rate limiting
+6. Implement metrics emission
+7. Integration tests with mock venues
+8. End-to-end tests with Polymarket testnet
+
+**Definition of Done:**
+- [ ] VenueAdapter trait defined and documented
+- [ ] Polymarket CLOB adapter fully functional
+- [ ] Order state machine tracks full lifecycle
+- [ ] Pre-trade risk checks integrated
+- [ ] Rate limiting prevents API violations
+- [ ] Execution metrics emitted to monitor
+- [ ] Integration tests pass
+- [ ] README with API usage examples
+
+---
+
+### 12.3 Feature: Persistent Storage (TimescaleDB)
+
+**Purpose:** Store metrics, execution history, and positions in persistent database.
+
+**New Agent:** `storage-layer`
+- **Location:** `.claude/agents/storage-layer.md`
+- **Working Directory:** `storage/`
+- **Responsibilities:**
+  - Implement TimescaleDB connection and pooling
+  - Design hypertable schemas for metrics and execution data
+  - Build high-throughput ingestion pipeline
+  - Create query API for historical data
+  - Implement data retention and compression policies
+  - Design database migration system
+
+**Module Structure:**
+```
+storage/
+├── src/
+│   ├── lib.rs              # StorageEngine API
+│   ├── engine.rs           # Main storage engine
+│   ├── execution.rs        # ExecutionStore
+│   ├── config.rs           # Configuration
+│   └── error.rs            # Error types
+├── timescale/
+│   ├── connection.rs       # Connection pooling
+│   ├── query.rs            # Query builders
+│   └── migrations.rs       # Migration runner
+├── schemas/
+│   ├── metrics.sql         # Metrics hypertable
+│   ├── execution.sql       # Orders/fills/positions
+│   └── migrations/         # Versioned migrations
+├── ingest/
+│   ├── buffer.rs           # Buffered insertion
+│   └── pipeline.rs         # Ingestion pipeline
+├── query/
+│   ├── metrics.rs          # Metric queries
+│   ├── execution.rs        # Execution queries
+│   └── cache.rs            # Query caching
+├── retention/
+│   ├── policy.rs           # Retention policies
+│   └── cleanup.rs          # Cleanup jobs
+└── docker-compose.yml      # Local TimescaleDB
+```
+
+**Schema Design:**
+
+```sql
+-- Metrics hypertable
+CREATE TABLE metrics (
+    timestamp TIMESTAMPTZ NOT NULL,
+    metric_name TEXT NOT NULL,
+    value DOUBLE PRECISION NOT NULL,
+    labels JSONB
+);
+SELECT create_hypertable('metrics', 'timestamp');
+
+-- Orders table
+CREATE TABLE orders (
+    id UUID PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL,
+    venue TEXT NOT NULL,
+    market TEXT NOT NULL,
+    side TEXT NOT NULL,
+    price DOUBLE PRECISION,
+    size DOUBLE PRECISION NOT NULL,
+    status TEXT NOT NULL
+);
+SELECT create_hypertable('orders', 'timestamp');
+
+-- Fills table
+CREATE TABLE fills (
+    id UUID PRIMARY KEY,
+    timestamp TIMESTAMPTZ NOT NULL,
+    order_id UUID REFERENCES orders(id),
+    price DOUBLE PRECISION NOT NULL,
+    size DOUBLE PRECISION NOT NULL,
+    fee DOUBLE PRECISION NOT NULL
+);
+SELECT create_hypertable('fills', 'timestamp');
+```
+
+**Interface Contracts:**
+
+**Integration with monitor/:**
+```rust
+// Monitor pushes metrics to storage
+storage_engine.insert_metrics_batch(vec![
+    MetricPoint {
+        timestamp: Utc::now(),
+        metric_name: "polymarket.rtds.lag_ms".to_string(),
+        value: 45.3,
+        labels: hashmap!{"topic" => "market"},
+    }
+]).await?;
+```
+
+**Integration with exec/:**
+```rust
+// Exec stores order and fill data
+execution_store.store_order(order).await?;
+execution_store.store_fill(fill).await?;
+```
+
+**Query API for analysis:**
+```rust
+// Query historical metrics
+let metrics = storage_engine.query_metrics(
+    "polymarket.rtds.lag_ms",
+    start_time,
+    end_time,
+    Some(hashmap!{"topic" => "market"}),
+).await?;
+
+// Query execution history
+let orders = execution_store.query_orders(
+    start_time,
+    end_time,
+    OrderFilters { venue: Some("polymarket"), ..Default::default() },
+).await?;
+```
+
+**Dependencies:**
+- Depends on: None (infrastructure layer)
+- Depended on by: monitor/ (metrics persistence), exec/ (execution history)
+
+**Implementation Order:**
+1. Set up TimescaleDB docker-compose
+2. Design and create hypertable schemas
+3. Implement connection pooling
+4. Build batch ingestion pipeline
+5. Create query API
+6. Add compression and retention policies
+7. Build migration system
+8. Integration tests with real database
+
+**Definition of Done:**
+- [ ] TimescaleDB running in docker-compose
+- [ ] Metrics and execution schemas created
+- [ ] Batch insertion >10k metrics/sec
+- [ ] Query API with time-range and filters
+- [ ] Compression after 7 days
+- [ ] Retention policy (90 days metrics, 365 days execution)
+- [ ] Migration system with up/down scripts
+- [ ] Integration tests pass
+- [ ] README with setup and usage
+
+---
+
+### 12.4 Feature: Advanced Risk Models (VaR, Greeks)
+
+**Purpose:** Implement quantitative risk models for sophisticated risk assessment.
+
+**New Agent:** `advanced-risk`
+- **Location:** `.claude/agents/advanced-risk.md`
+- **Working Directory:** `risk/src/advanced/`
+- **Responsibilities:**
+  - Implement Value at Risk (VaR) models (Historical, Parametric, Monte Carlo)
+  - Build Greeks calculation engine (Delta, Gamma, Vega, Theta, Rho)
+  - Create portfolio risk analytics
+  - Design stress testing framework
+  - Calculate performance metrics (Sharpe, Sortino, max drawdown)
+  - Integrate with base risk engine
+
+**Module Structure:**
+```
+risk/src/advanced/
+├── mod.rs              # Advanced module exports
+├── var.rs              # VaR engines
+├── greeks.rs           # Greeks calculation
+├── portfolio.rs        # Portfolio analytics
+├── stress.rs           # Stress testing
+├── metrics.rs          # Performance metrics
+├── models.rs           # Model integration
+└── error.rs            # Advanced error types
+
+risk/tests/advanced/
+├── var_tests.rs        # VaR validation tests
+├── greeks_tests.rs     # Greeks accuracy tests
+└── portfolio_tests.rs  # Portfolio analytics tests
+
+risk/docs/advanced/
+├── VAR_METHODOLOGY.md
+├── GREEKS_GUIDE.md
+└── STRESS_TESTING.md
+```
+
+**Interface Contracts:**
+
+**VaR Calculation:**
+```rust
+pub struct VarEngine {
+    config: VarConfig,
+    historical_returns: Vec<f64>,
+}
+
+impl VarEngine {
+    pub fn calculate_historical_var(
+        &self,
+        portfolio_value: f64,
+        confidence_level: f64,  // e.g., 0.95, 0.99
+        time_horizon_days: u32,
+    ) -> Result<VarResult, RiskError>;
+
+    pub fn calculate_monte_carlo_var(
+        &self,
+        portfolio_value: f64,
+        mean_return: f64,
+        volatility: f64,
+        confidence_level: f64,
+        time_horizon_days: u32,
+        num_simulations: usize,
+    ) -> Result<VarResult, RiskError>;
+}
+```
+
+**Greeks Calculation:**
+```rust
+pub struct GreeksEngine {
+    config: GreeksConfig,
+}
+
+impl GreeksEngine {
+    pub fn calculate_greeks(
+        &self,
+        option: &Option,
+        underlying_price: f64,
+        volatility: f64,
+        risk_free_rate: f64,
+    ) -> Result<Greeks, RiskError>;
+
+    pub fn calculate_portfolio_greeks(
+        &self,
+        positions: &[OptionPosition],
+        market_data: &MarketData,
+    ) -> Result<PortfolioGreeks, RiskError>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Greeks {
+    pub delta: f64,
+    pub gamma: f64,
+    pub vega: f64,
+    pub theta: f64,
+    pub rho: f64,
+}
+```
+
+**Integration with base risk engine:**
+```rust
+// Extend PolicyRule enum
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(tag = "type")]
+pub enum PolicyRule {
+    // Existing policies
+    PositionLimit { ... },
+    InventoryLimit { ... },
+    KillSwitch { ... },
+
+    // Advanced risk policies
+    VarLimit {
+        max_var_usd: f64,
+        confidence_level: f64,
+        time_horizon_days: u32,
+    },
+    GreeksLimit {
+        max_delta: f64,
+        max_gamma: f64,
+        max_vega: f64,
+    },
+}
+```
+
+**Integration with exec/:**
+```rust
+// Provide hedging recommendations
+let hedge_recommendations = greeks_engine.suggest_hedge(
+    &current_portfolio_greeks,
+    &target_greeks,
+    &available_instruments,
+).await?;
+```
+
+**Integration with monitor/:**
+```json
+// Emit advanced risk metrics
+{
+  "timestamp": 1735689600000,
+  "metric_type": "gauge",
+  "metric_name": "risk.var_95",
+  "value": 1250.50,
+  "labels": {"time_horizon": "1d", "method": "historical"}
+}
+
+{
+  "timestamp": 1735689600000,
+  "metric_type": "gauge",
+  "metric_name": "risk.portfolio_delta",
+  "value": 0.45,
+  "labels": {}
+}
+```
+
+**Dependencies:**
+- Depends on: base risk/ (extends existing policies)
+- Depended on by: exec/ (hedging recommendations), strategies/ (risk-aware trading)
+
+**Implementation Order:**
+1. Implement Historical VaR
+2. Add Parametric and Monte Carlo VaR
+3. Build Black-Scholes Greeks calculation
+4. Create portfolio analytics
+5. Design stress testing scenarios
+6. Integrate with base PolicyRule enum
+7. Add VaR backtesting framework
+8. Mathematical validation tests
+
+**Definition of Done:**
+- [ ] VaR models (Historical, Parametric, Monte Carlo) implemented
+- [ ] Greeks calculation validated against benchmarks
+- [ ] Portfolio volatility and correlation matrix calculation
+- [ ] Stress testing with 3+ scenarios
+- [ ] Performance metrics (Sharpe, Sortino, max drawdown)
+- [ ] Integration with base risk engine
+- [ ] VaR backtesting shows <5% violations at 95% confidence
+- [ ] Mathematical validation tests pass
+- [ ] Documentation of all formulas
+- [ ] README with methodology
+
+---
+
+### 12.5 Feature: Multi-Market Strategy Support
+
+**Purpose:** Enable trading strategies across multiple markets and venues simultaneously.
+
+**New Agent:** `strategy-engine`
+- **Location:** `.claude/agents/strategy-engine.md`
+- **Working Directory:** `strategies/`
+- **Responsibilities:**
+  - Design base Strategy trait with lifecycle hooks
+  - Build multi-market coordinator
+  - Create signal generation framework
+  - Implement reference strategies (market making, arbitrage, trend following)
+  - Build backtesting engine
+  - Design strategy metrics and monitoring
+
+**Module Structure:**
+```
+strategies/
+├── src/
+│   ├── lib.rs              # Strategy trait and core types
+│   ├── context.rs          # StrategyContext
+│   ├── coordinator.rs      # MultiMarketCoordinator
+│   ├── error.rs            # Strategy errors
+│   └── metrics.rs          # Strategy metrics
+├── framework/
+│   ├── lifecycle.rs        # Lifecycle management
+│   ├── params.rs           # Parameter handling
+│   └── versioning.rs       # Strategy versioning
+├── multimarket/
+│   ├── arbitrage.rs        # Arbitrage detection
+│   ├── routing.rs          # Order routing
+│   └── inventory.rs        # Cross-market inventory
+├── signals/
+│   ├── technical.rs        # Technical indicators
+│   ├── microstructure.rs   # Market microstructure
+│   └── composite.rs        # Signal composition
+├── impl/
+│   ├── market_maker.rs     # Market making
+│   ├── trend.rs            # Trend following
+│   ├── mean_reversion.rs   # Mean reversion
+│   ├── stat_arb.rs         # Statistical arbitrage
+│   └── execution.rs        # TWAP/VWAP
+└── backtest/
+    ├── engine.rs           # Backtesting engine
+    ├── fill_sim.rs         # Fill simulation
+    └── optimizer.rs        # Parameter optimization
+```
+
+**Interface Contracts:**
+
+**Strategy Trait:**
+```rust
+#[async_trait]
+pub trait Strategy: Send + Sync {
+    async fn initialize(&mut self, ctx: &mut StrategyContext) -> Result<(), StrategyError>;
+
+    async fn on_market_tick(
+        &mut self,
+        market_id: &str,
+        tick: &MarketTick,
+        ctx: &mut StrategyContext,
+    ) -> Result<(), StrategyError>;
+
+    async fn on_fill(
+        &mut self,
+        fill: &Fill,
+        ctx: &mut StrategyContext,
+    ) -> Result<(), StrategyError>;
+
+    async fn on_cancel(
+        &mut self,
+        order_id: &OrderId,
+        ctx: &mut StrategyContext,
+    ) -> Result<(), StrategyError>;
+
+    fn metadata(&self) -> StrategyMetadata;
+}
+```
+
+**Strategy Context:**
+```rust
+pub struct StrategyContext {
+    pub strategy_id: String,
+    pub exec_engine: Arc<Mutex<ExecutionEngine>>,
+    pub risk_engine: Arc<Mutex<RiskEngine>>,
+    pub positions: HashMap<String, Position>,
+    pub orders: HashMap<OrderId, Order>,
+}
+
+impl StrategyContext {
+    pub async fn submit_order(&mut self, order: Order) -> Result<OrderId, StrategyError>;
+    pub async fn cancel_order(&mut self, order_id: &OrderId) -> Result<(), StrategyError>;
+    pub fn get_position(&self, market_id: &str) -> Option<&Position>;
+}
+```
+
+**Multi-Market Coordination:**
+```rust
+pub struct MultiMarketCoordinator {
+    strategies: HashMap<String, Box<dyn Strategy>>,
+    market_subscriptions: HashMap<String, Vec<String>>,
+}
+
+impl MultiMarketCoordinator {
+    pub async fn register_strategy(
+        &mut self,
+        strategy_id: String,
+        strategy: Box<dyn Strategy>,
+        markets: Vec<String>,
+    ) -> Result<(), StrategyError>;
+
+    pub async fn route_market_tick(
+        &mut self,
+        market_id: &str,
+        tick: &MarketTick,
+    ) -> Result<(), StrategyError>;
+}
+```
+
+**Integration with exec/:**
+```rust
+// Submit orders via ExecutionEngine
+let order_id = ctx.exec_engine.lock().await.submit_order(order).await?;
+```
+
+**Integration with risk/:**
+```rust
+// Risk checks performed before order submission
+let risk_decision = ctx.risk_engine.lock().await.evaluate(&risk_ctx).await?;
+if !risk_decision.allowed {
+    return Err(StrategyError::RiskRejected);
+}
+```
+
+**Integration with monitor/:**
+```json
+// Strategy metrics
+{
+  "timestamp": 1735689600000,
+  "metric_type": "gauge",
+  "metric_name": "strategy.pnl_usd",
+  "value": 125.50,
+  "labels": {"strategy_id": "mm_strategy_1", "market": "0x123abc"}
+}
+
+{
+  "timestamp": 1735689600000,
+  "metric_type": "counter",
+  "metric_name": "strategy.signals_generated",
+  "value": 1,
+  "labels": {"strategy_id": "arb_strategy_1", "signal_type": "long"}
+}
+```
+
+**Dependencies:**
+- Depends on: exec/ (order execution), risk/ (pre-trade checks), monitor/ (metrics)
+- Depended on by: User strategies (extend Strategy trait)
+
+**Implementation Order:**
+1. Define Strategy trait and StrategyContext
+2. Build MultiMarketCoordinator
+3. Implement market making strategy
+4. Add cross-market arbitrage strategy
+5. Create signal generation framework
+6. Build backtesting engine
+7. Add strategy metrics emission
+8. Integration tests with mock exec/risk
+
+**Definition of Done:**
+- [ ] Strategy trait defined with lifecycle hooks
+- [ ] StrategyContext integrates exec and risk
+- [ ] MultiMarketCoordinator routes market data
+- [ ] Market making strategy implemented
+- [ ] Cross-market arbitrage strategy implemented
+- [ ] Signal framework with 3+ indicators
+- [ ] Backtesting engine functional
+- [ ] Strategy metrics emitted to monitor
+- [ ] Integration tests pass
+- [ ] README with strategy development guide
+
+---
+
+### 12.6 Feature: Production Deployment Tooling
+
+**Purpose:** Enable reliable, scalable production deployments with monitoring and observability.
+
+**New Agent:** `devops-infra`
+- **Location:** `.claude/agents/devops-infra.md`
+- **Working Directories:** `deploy/`, `infra/`
+- **Responsibilities:**
+  - Create Docker images for all components
+  - Design Kubernetes manifests with autoscaling
+  - Build CI/CD pipelines (GitHub Actions)
+  - Implement Terraform for infrastructure
+  - Deploy monitoring stack (Prometheus/Grafana)
+  - Create deployment runbooks and disaster recovery
+
+**Module Structure:**
+```
+deploy/
+├── docker/
+│   ├── Dockerfile.exec
+│   ├── Dockerfile.monitor
+│   ├── Dockerfile.strategy
+│   ├── docker-compose.yml
+│   └── .dockerignore
+└── k8s/
+    ├── namespace.yaml
+    ├── exec-deployment.yaml
+    ├── monitor-deployment.yaml
+    ├── strategy-deployment.yaml
+    ├── timescaledb-statefulset.yaml
+    ├── configmaps.yaml
+    ├── secrets.yaml
+    └── ingress.yaml
+
+infra/
+├── terraform/
+│   ├── main.tf
+│   ├── vpc.tf
+│   ├── eks.tf
+│   └── rds.tf
+├── monitoring/
+│   ├── prometheus/
+│   ├── grafana/
+│   └── alerts/
+└── ops/
+    ├── runbooks/
+    ├── disaster-recovery.md
+    └── backup-restore.sh
+```
+
+**Kubernetes Architecture:**
+```yaml
+# Exec Gateway Deployment with HPA
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: exec-gateway
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+      - name: exec-gateway
+        image: ghcr.io/org/ag-exec:latest
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8081
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8081
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: exec-gateway-hpa
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: exec-gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        averageUtilization: 70
+```
+
+**CI/CD Pipeline:**
+```yaml
+# .github/workflows/deploy.yml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo clippy --all-targets
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test --workspace
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/build-push-action@v5
+        with:
+          push: true
+          tags: ghcr.io/org/ag-exec:${{ github.sha }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - run: kubectl apply -f deploy/k8s/
+      - run: kubectl rollout status deployment/exec-gateway
+```
+
+**Monitoring Stack:**
+- Prometheus: Scrape metrics from all services
+- Grafana: Dashboards for system health, execution metrics, risk metrics
+- AlertManager: Alert on critical conditions
+- Loki: Log aggregation
+
+**Integration with all modules:**
+```yaml
+# All modules expose Prometheus metrics
+# All pods have health/readiness endpoints
+# All services log to stdout (collected by Loki)
+# All deployments have resource limits
+```
+
+**Dependencies:**
+- Depends on: All modules (deploys everything)
+- Depended on by: None (infrastructure layer)
+
+**Implementation Order:**
+1. Create Dockerfiles for each component
+2. Build docker-compose for local testing
+3. Design Kubernetes manifests
+4. Implement CI/CD pipeline
+5. Create Terraform for AWS/GCP
+6. Deploy Prometheus/Grafana
+7. Write deployment runbooks
+8. Test disaster recovery procedures
+
+**Definition of Done:**
+- [ ] Docker images for all components (<500MB)
+- [ ] docker-compose for local development
+- [ ] Kubernetes manifests with HPA
+- [ ] CI/CD pipeline (build, test, deploy)
+- [ ] Terraform provisions infrastructure
+- [ ] Prometheus/Grafana deployed
+- [ ] Alerting rules configured
+- [ ] Deployment runbooks written
+- [ ] Backup/restore tested
+- [ ] Zero-downtime deployment verified
+- [ ] README with deployment guide
+
+---
+
+### 12.7 Implementation Roadmap and Dependencies
+
+**Dependency Graph:**
+```
+Phase 1 (Foundation):
+- storage-layer (no dependencies)
+  └─> Enables persistent metrics and execution history
+
+Phase 2 (Execution):
+- exec-gateway (depends on: risk/, monitor/)
+  └─> Enables real order placement
+  └─> Integrates with storage-layer for execution history
+
+Phase 3 (Advanced Risk):
+- advanced-risk (depends on: base risk/)
+  └─> Extends risk engine with quantitative models
+  └─> Integrates with exec-gateway for hedging
+
+Phase 4 (Strategies):
+- strategy-engine (depends on: exec-gateway, advanced-risk)
+  └─> Enables multi-market trading strategies
+  └─> Integrates all previous layers
+
+Phase 5 (Production):
+- devops-infra (depends on: all modules)
+  └─> Deploys entire stack to production
+```
+
+**Implementation Timeline:**
+
+**Week 1-2: Storage Layer**
+- Set up TimescaleDB
+- Implement schemas and ingestion
+- Build query API
+- Test with monitor metrics
+
+**Week 3-4: Execution Gateway**
+- Define ExecutionEngine API
+- Implement Polymarket CLOB adapter
+- Integrate risk checks
+- Add rate limiting and metrics
+
+**Week 5-6: Advanced Risk**
+- Implement VaR models
+- Build Greeks calculation
+- Create portfolio analytics
+- Validate with known benchmarks
+
+**Week 7-8: Strategy Engine**
+- Define Strategy trait
+- Build MultiMarketCoordinator
+- Implement 2-3 reference strategies
+- Create backtesting framework
+
+**Week 9-10: Production Deployment**
+- Containerize all components
+- Create Kubernetes manifests
+- Build CI/CD pipeline
+- Deploy monitoring stack
+- Production readiness testing
+
+---
+
+### 12.8 Coordination Strategy
+
+**Architect as Orchestrator:**
+
+The system-architect agent is the single source of truth for all integration and coordination:
+
+1. **Before Implementation:**
+   - Architect defines module interfaces in MULTI_AGENT_PLAN.md
+   - Architect creates integration contracts
+   - Architect approves agent task allocation
+
+2. **During Implementation:**
+   - Specialized agents work in assigned directories only
+   - Agents NEVER modify other modules
+   - Integration issues escalated to architect
+   - Architect updates MULTI_AGENT_PLAN.md with decisions
+
+3. **After Implementation:**
+   - Architect validates integration points
+   - Architect updates system architecture diagrams
+   - Architect documents lessons learned
+
+**Agent Boundaries:**
+
+| Agent | Directory | Can Read | Can Write | Must Coordinate With |
+|-------|-----------|----------|-----------|----------------------|
+| core-c-implementer | core/ | core/ | core/ | architect (API changes) |
+| risk-engine | risk/ | risk/ | risk/ | architect (contracts) |
+| advanced-risk | risk/src/advanced/ | risk/ | risk/src/advanced/ | risk-engine |
+| monitor-ui | monitor/ | monitor/ | monitor/ | architect (protocols) |
+| exec-gateway | exec/ | exec/, risk/, monitor/ | exec/ | architect, risk-engine |
+| storage-layer | storage/ | storage/ | storage/ | architect (schemas) |
+| strategy-engine | strategies/ | strategies/, exec/, risk/ | strategies/ | architect, exec-gateway |
+| devops-infra | deploy/, infra/ | all | deploy/, infra/ | architect (all modules) |
+
+**Communication Protocol:**
+
+1. **Interface Changes:**
+   - Agent proposes change in implementation
+   - Architect reviews and updates MULTI_AGENT_PLAN.md
+   - All dependent agents notified via plan update
+   - Implementation proceeds after approval
+
+2. **Integration Issues:**
+   - Agent documents issue with affected modules
+   - Architect analyzes and redesigns integration
+   - Architect updates contracts in MULTI_AGENT_PLAN.md
+   - Agents implement per updated contracts
+
+3. **New Features:**
+   - User requests feature
+   - Architect assigns to appropriate agent(s)
+   - Architect defines integration points
+   - Agents implement within boundaries
+   - Architect validates integration
+
+---
+
+### 12.9 Quality Gates
+
+**Code Quality:**
+- All agents: No compiler warnings
+- Rust: `cargo clippy` passes
+- C: Compiles with `-Wall -Wextra -Wpedantic`
+- Go: `go vet` passes
+
+**Testing:**
+- Unit test coverage: >80%
+- Integration tests: All critical paths covered
+- E2E tests: Happy path + error scenarios
+- Performance tests: Meet defined targets
+
+**Documentation:**
+- Every module has README.md
+- All public APIs documented
+- Integration points described
+- Examples provided
+
+**Security:**
+- No secrets in code
+- All dependencies scanned
+- Container images hardened
+- Network policies defined
+
+---
+
+## 13. REVISION HISTORY
 
 | Date       | Version | Changes                        | Author          |
 |------------|---------|--------------------------------|-----------------|
 | 2025-12-31 | 1.0     | Initial architecture           | System Architect|
+| 2025-12-31 | 2.0     | Roadmap architecture added     | System Architect|
+|            |         | - CLOB API integration         |                 |
+|            |         | - TimescaleDB storage          |                 |
+|            |         | - Advanced risk models         |                 |
+|            |         | - Multi-market strategies      |                 |
+|            |         | - Production deployment        |                 |
+|            |         | - 5 new specialized agents     |                 |
 
 ---
 

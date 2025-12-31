@@ -1,0 +1,99 @@
+---
+# Ingress for monitor dashboard
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitor-ingress
+  namespace: ag-botkit
+  labels:
+    app: monitor
+  annotations:
+    # Nginx ingress controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/websocket-services: "monitor"
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+
+    # CORS (if needed)
+    # nginx.ingress.kubernetes.io/enable-cors: "true"
+    # nginx.ingress.kubernetes.io/cors-allow-origin: "https://example.com"
+
+    # SSL/TLS (cert-manager)
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - monitor.ag-botkit.example.com  # Replace with your domain
+      secretName: monitor-tls-secret
+  rules:
+    - host: monitor.ag-botkit.example.com  # Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: monitor
+                port:
+                  number: 8080
+---
+# Ingress for Grafana (optional, if deploying Grafana in cluster)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana-ingress
+  namespace: ag-botkit
+  labels:
+    app: grafana
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # Basic auth for Grafana
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: grafana-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: 'Authentication Required - Grafana'
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - grafana.ag-botkit.example.com  # Replace with your domain
+      secretName: grafana-tls-secret
+  rules:
+    - host: grafana.ag-botkit.example.com  # Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+---
+# Basic auth secret for Grafana (generate with: htpasswd -c auth username)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grafana-basic-auth
+  namespace: ag-botkit
+type: Opaque
+data:
+  # Generate with: echo -n 'username:password' | base64
+  # Or: htpasswd -c auth username; cat auth | base64
+  auth: REPLACE_WITH_BASE64_HTPASSWD  # Format: username:$apr1$salt$hash

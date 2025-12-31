@@ -42,6 +42,9 @@ mod policy;
 mod engine;
 mod simulator;
 
+// Advanced risk models
+pub mod advanced;
+
 pub use policy::{PolicyRule, RiskPolicyConfig};
 pub use engine::RiskEngine;
 pub use simulator::PolymarketSimulator;

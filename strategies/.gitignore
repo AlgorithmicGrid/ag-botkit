@@ -1,0 +1,27 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo lock for library crates (exclude for binaries)
+# Cargo.lock
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Config files (keep examples)
+config.yaml
+*.local.yaml
+
+# Logs
+*.log
+
+# Backup files
+*.bak

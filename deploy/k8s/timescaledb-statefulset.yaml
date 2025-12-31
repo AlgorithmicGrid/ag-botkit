@@ -1,0 +1,134 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: timescaledb
+  namespace: ag-botkit
+  labels:
+    app: timescaledb
+    component: database
+spec:
+  serviceName: timescaledb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timescaledb
+  template:
+    metadata:
+      labels:
+        app: timescaledb
+        component: database
+    spec:
+      serviceAccountName: ag-botkit-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999  # postgres user
+        fsGroup: 999
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb:latest-pg15
+          ports:
+            - containerPort: 5432
+              name: postgres
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: ag_botkit
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: database-credentials
+                  key: password
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init-scripts
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          resources:
+            requests:
+              cpu: 1000m
+              memory: 2Gi
+            limits:
+              cpu: 4000m
+              memory: 8Gi
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: init-scripts
+          configMap:
+            name: timescale-init-scripts
+            optional: true
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: gp3  # AWS EBS gp3, adjust for your cloud provider
+        resources:
+          requests:
+            storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb
+  namespace: ag-botkit
+  labels:
+    app: timescaledb
+spec:
+  type: ClusterIP
+  selector:
+    app: timescaledb
+  ports:
+    - port: 5432
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  clusterIP: None  # Headless service for StatefulSet
+---
+# Service for external access (if needed)
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb-external
+  namespace: ag-botkit
+  labels:
+    app: timescaledb
+spec:
+  type: LoadBalancer
+  selector:
+    app: timescaledb
+  ports:
+    - port: 5432
+      targetPort: postgres
+      protocol: TCP
+      name: postgres
+  # Restrict to specific IPs in production
+  # loadBalancerSourceRanges:
+  #   - 10.0.0.0/8

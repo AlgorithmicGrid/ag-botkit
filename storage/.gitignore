@@ -1,0 +1,17 @@
+# Rust build artifacts
+target/
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local config overrides
+config.local.yaml
+*.local.yaml
+
+# Logs
+*.log

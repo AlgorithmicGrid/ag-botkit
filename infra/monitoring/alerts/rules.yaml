@@ -1,0 +1,243 @@
+# Prometheus alerting rules for ag-botkit
+
+groups:
+  - name: ag-botkit-alerts
+    interval: 30s
+    rules:
+      # System Health Alerts
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% for more than 5 minutes. Current value: {{ $value }}%"
+
+      - alert: HighMemoryUsage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85%. Current value: {{ $value }}%"
+
+      - alert: DiskSpaceLow
+        expr: |
+          (1 - (node_filesystem_avail_bytes / node_filesystem_size_bytes)) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Disk usage is above 80% on {{ $labels.mountpoint }}. Current value: {{ $value }}%"
+
+      # Kubernetes Alerts
+      - alert: PodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: kubernetes
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
+          description: "Pod has restarted {{ $value }} times in the last 15 minutes"
+
+      - alert: PodNotReady
+        expr: |
+          kube_pod_status_phase{phase!="Running"} == 1
+        for: 10m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is not ready"
+          description: "Pod has been in {{ $labels.phase }} state for more than 10 minutes"
+
+      - alert: DeploymentReplicasMismatch
+        expr: |
+          kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+        for: 10m
+        labels:
+          severity: warning
+          component: kubernetes
+        annotations:
+          summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has mismatched replicas"
+          description: "Desired replicas: {{ $value }}, Available replicas differ"
+
+      # Monitor Service Alerts
+      - alert: MonitorServiceDown
+        expr: |
+          up{job="monitor"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: monitor
+        annotations:
+          summary: "Monitor service is down"
+          description: "Monitor service has been unreachable for more than 2 minutes"
+
+      - alert: MonitorHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="monitor"}[5m])) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: monitor
+        annotations:
+          summary: "Monitor service has high latency"
+          description: "95th percentile latency is above 1 second: {{ $value }}s"
+
+      # Minibot Alerts
+      - alert: MinibotDown
+        expr: |
+          up{job="minibot"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: minibot
+        annotations:
+          summary: "Minibot is down"
+          description: "Minibot has been unreachable for more than 2 minutes"
+
+      - alert: RTDSConnectionLost
+        expr: |
+          polymarket_rtds_connection_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: minibot
+        annotations:
+          summary: "RTDS connection lost"
+          description: "Minibot has lost connection to Polymarket RTDS"
+
+      - alert: HighRTDSLag
+        expr: |
+          polymarket_rtds_lag_ms > 500
+        for: 5m
+        labels:
+          severity: warning
+          component: minibot
+        annotations:
+          summary: "High RTDS lag detected"
+          description: "RTDS lag is above 500ms: {{ $value }}ms"
+
+      - alert: LowMessageRate
+        expr: |
+          rate(polymarket_rtds_messages_received[5m]) < 1
+        for: 5m
+        labels:
+          severity: warning
+          component: minibot
+        annotations:
+          summary: "Low RTDS message rate"
+          description: "Receiving fewer than 1 message per second from RTDS"
+
+      # Risk Engine Alerts
+      - alert: KillSwitchTriggered
+        expr: |
+          polymarket_risk_kill_switch == 1
+        for: 0m
+        labels:
+          severity: critical
+          component: risk
+        annotations:
+          summary: "Risk kill switch has been triggered"
+          description: "Trading has been halted due to risk kill switch activation"
+
+      - alert: HighRiskRejectionRate
+        expr: |
+          rate(polymarket_risk_decision{value="0"}[5m]) / rate(polymarket_risk_decision[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: risk
+        annotations:
+          summary: "High risk rejection rate"
+          description: "More than 50% of trades are being rejected by risk engine"
+
+      # Database Alerts
+      - alert: TimescaleDBDown
+        expr: |
+          pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "TimescaleDB is down"
+          description: "TimescaleDB has been unreachable for more than 2 minutes"
+
+      - alert: TimescaleDBHighConnections
+        expr: |
+          pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "TimescaleDB connection pool near capacity"
+          description: "Database connections are above 80% of max: {{ $value }}%"
+
+      - alert: TimescaleDBSlowQueries
+        expr: |
+          rate(pg_stat_statements_mean_exec_time_seconds[5m]) > 1.0
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "Slow queries detected in TimescaleDB"
+          description: "Average query execution time is above 1 second: {{ $value }}s"
+
+      - alert: TimescaleDBHighDiskUsage
+        expr: |
+          (pg_database_size_bytes / pg_settings_data_directory_size_bytes) > 0.85
+        for: 10m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "TimescaleDB disk usage is high"
+          description: "Database disk usage is above 85%: {{ $value }}%"
+
+      # Execution Gateway Alerts (for future exec module)
+      - alert: ExecutionGatewayDown
+        expr: |
+          up{job="exec-gateway"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: execution
+        annotations:
+          summary: "Execution gateway is down"
+          description: "Execution gateway has been unreachable for more than 2 minutes"
+
+      - alert: HighExecutionLatency
+        expr: |
+          histogram_quantile(0.95, rate(exec_latency_ms_bucket[5m])) > 100
+        for: 5m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "High execution latency"
+          description: "95th percentile execution latency is above 100ms: {{ $value }}ms"
+
+      - alert: OrderRejectionRate
+        expr: |
+          rate(exec_orders_rejected_total[5m]) / rate(exec_orders_placed_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: execution
+        annotations:
+          summary: "High order rejection rate"
+          description: "More than 10% of orders are being rejected: {{ $value }}%"

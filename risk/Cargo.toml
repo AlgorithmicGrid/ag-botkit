@@ -16,6 +16,11 @@ serde_yaml = "0.9"
 serde_json = "1.0"
 thiserror = "1.0"
 tokio = { version = "1.0", features = ["full"], optional = true }
+nalgebra = "0.32"           # Linear algebra for portfolio analytics
+statrs = "0.16"             # Statistical functions and distributions
+rand = "0.8"                # Random number generation for Monte Carlo
+rand_distr = "0.4"          # Distribution sampling
+chrono = { version = "0.4", features = ["serde"] }  # DateTime handling
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"] }

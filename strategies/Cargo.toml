@@ -1,0 +1,59 @@
+[package]
+name = "ag-strategies"
+version = "0.1.0"
+edition = "2021"
+authors = ["ag-botkit contributors"]
+description = "Multi-market trading strategy framework for ag-botkit"
+license = "MIT"
+
+[lib]
+name = "ag_strategies"
+path = "src/lib.rs"
+
+[dependencies]
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Date/time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Collections and utilities
+dashmap = "5.5"  # Concurrent HashMap
+parking_lot = "0.12"  # Better synchronization primitives
+
+# Statistics and math
+statrs = "0.16"
+nalgebra = "0.32"
+
+# Internal dependencies
+ag-risk = { path = "../risk" }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+approx = "0.5"  # Floating point comparisons in tests
+proptest = "1.0"  # Property-based testing
+
+[[example]]
+name = "run_strategy"
+path = "examples/run_strategy.rs"
+
+[[example]]
+name = "backtest"
+path = "examples/backtest.rs"
+
+[features]
+default = []

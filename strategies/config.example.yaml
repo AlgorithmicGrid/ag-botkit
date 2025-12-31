@@ -1,0 +1,110 @@
+# Example strategy configuration
+#
+# This file demonstrates how to configure trading strategies for ag-botkit
+
+strategies:
+  # Market Making Strategy
+  - id: mm_strategy_1
+    type: MarketMaker
+    enabled: true
+    markets:
+      - "polymarket:0x123abc"
+    params:
+      # Target spread in basis points (0.2%)
+      target_spread_bps: 20.0
+
+      # Quote size per order
+      quote_size: 100.0
+
+      # Maximum position size (units)
+      max_position: 1000.0
+
+      # Target inventory (0 = neutral)
+      inventory_target: 0.0
+
+      # Inventory skew adjustment factor (0-1)
+      skew_factor: 0.5
+
+      # Minimum quote interval (milliseconds)
+      min_quote_interval_ms: 100
+
+  # Cross-Market Arbitrage Strategy
+  - id: arb_strategy_1
+    type: CrossMarketArbitrage
+    enabled: true
+    markets:
+      - "polymarket:0x123abc"
+      - "polymarket:0x456def"
+    params:
+      # Minimum spread to execute arbitrage (basis points)
+      min_spread_bps: 10.0
+
+      # Trade size
+      size: 50.0
+
+      # Maximum position per market
+      max_position: 500.0
+
+  # Market Making Strategy on Another Market
+  - id: mm_strategy_2
+    type: MarketMaker
+    enabled: true
+    markets:
+      - "polymarket:0x789ghi"
+    params:
+      target_spread_bps: 25.0
+      quote_size: 50.0
+      max_position: 500.0
+      inventory_target: 0.0
+      skew_factor: 0.3
+      min_quote_interval_ms: 200
+
+# Risk policies (shared across all strategies)
+risk:
+  policies:
+    # Per-market position limits
+    - type: PositionLimit
+      market_id: "polymarket:0x123abc"
+      max_size: 1000.0
+
+    - type: PositionLimit
+      market_id: "polymarket:0x456def"
+      max_size: 500.0
+
+    # Global inventory limit
+    - type: InventoryLimit
+      max_value_usd: 10000.0
+
+    # Kill switch (disabled by default)
+    - type: KillSwitch
+      enabled: false
+
+# Backtesting configuration
+backtest:
+  # Starting capital for backtests
+  initial_capital: 10000.0
+
+  # Fill simulation parameters
+  fill_simulation:
+    # Slippage in basis points
+    slippage_bps: 5.0
+
+    # Fill probability for passive orders
+    fill_probability: 0.8
+
+    # Taker fee (basis points)
+    taker_fee_bps: 10.0
+
+    # Maker fee (basis points, negative = rebate)
+    maker_fee_bps: -5.0
+
+# Monitoring and metrics
+monitoring:
+  # Metrics emission interval (seconds)
+  metrics_interval_sec: 10
+
+  # Monitor WebSocket endpoint
+  monitor_endpoint: "ws://localhost:8080/metrics"
+
+  # Metrics buffer size
+  buffer_size: 1000

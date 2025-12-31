@@ -1,0 +1,63 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ag-botkit
+  labels:
+    name: ag-botkit
+    environment: production
+    project: algorithmic-grid
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ag-botkit-sa
+  namespace: ag-botkit
+  labels:
+    app: ag-botkit
+---
+# Network policy to isolate namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ag-botkit-network-policy
+  namespace: ag-botkit
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+    # Allow inter-pod communication within namespace
+    - from:
+        - podSelector: {}
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow outbound to internet (for RTDS, exchanges)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+    # Allow database connections
+    - to:
+        - podSelector:
+            matchLabels:
+              app: timescaledb
+      ports:
+        - protocol: TCP
+          port: 5432

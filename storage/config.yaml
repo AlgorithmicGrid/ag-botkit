@@ -1,0 +1,42 @@
+# ag-storage Configuration
+# TimescaleDB persistent storage layer configuration
+
+database:
+  host: localhost
+  port: 5432
+  database: ag_botkit
+  user: postgres
+  password: postgres
+  max_connections: 10
+  connection_timeout_sec: 5
+  use_tls: false
+
+ingestion:
+  # Batch size for bulk inserts
+  batch_size: 1000
+
+  # Flush interval in milliseconds
+  flush_interval_ms: 100
+
+  # Maximum buffer size before blocking
+  max_buffer_size: 10000
+
+retention:
+  # Metrics retention in days
+  metrics_retention_days: 90
+
+  # Execution data retention in days (for compliance/audit)
+  execution_retention_days: 365
+
+  # Compression threshold in days
+  compression_after_days: 7
+
+query:
+  # Maximum number of results to return
+  max_results: 10000
+
+  # Cache TTL in seconds
+  cache_ttl_sec: 60
+
+  # Enable query result caching
+  enable_cache: true

@@ -1,0 +1,103 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minibot
+  namespace: ag-botkit
+  labels:
+    app: minibot
+    component: strategy
+    version: v1
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # Only one instance should connect to RTDS
+  selector:
+    matchLabels:
+      app: minibot
+  template:
+    metadata:
+      labels:
+        app: minibot
+        component: strategy
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      serviceAccountName: ag-botkit-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: minibot
+          image: ghcr.io/ag-botkit/minibot:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: MONITOR_URL
+              value: "ws://monitor:8080/metrics"
+            - name: RTDS_ENDPOINT
+              value: "wss://ws-live-data.polymarket.com"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep minibot
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep minibot
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          volumeMounts:
+            - name: config
+              mountPath: /app/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: risk-policies
+              mountPath: /app/policies
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: minibot-config
+        - name: risk-policies
+          configMap:
+            name: risk-policies
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minibot
+  namespace: ag-botkit
+  labels:
+    app: minibot
+spec:
+  type: ClusterIP
+  selector:
+    app: minibot
+  ports:
+    - port: 9091
+      targetPort: 9091
+      protocol: TCP
+      name: metrics
+  clusterIP: None  # Headless service

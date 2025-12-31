@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: ag-botkit-timescaledb
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ag_botkit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      # TimescaleDB tuning
+      TIMESCALEDB_TELEMETRY: "off"
+    volumes:
+      - timescaledb-data:/var/lib/postgresql/data
+      # Auto-initialize schemas on first start
+      - ./schemas/metrics.sql:/docker-entrypoint-initdb.d/01-metrics.sql
+      - ./schemas/execution.sql:/docker-entrypoint-initdb.d/02-execution.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=timescaledb
+      - -c
+      - max_connections=100
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - wal_buffers=16MB
+      - -c
+      - default_statistics_target=100
+      - -c
+      - random_page_cost=1.1
+      - -c
+      - effective_io_concurrency=200
+      - -c
+      - work_mem=16MB
+      - -c
+      - min_wal_size=1GB
+      - -c
+      - max_wal_size=4GB
+
+  # Optional: pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: ag-botkit-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@ag-botkit.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - timescaledb
+    profiles:
+      - admin
+
+volumes:
+  timescaledb-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+
+networks:
+  default:
+    name: ag-botkit-storage

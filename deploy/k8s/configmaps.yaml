@@ -1,0 +1,126 @@
+---
+# Minibot configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minibot-config
+  namespace: ag-botkit
+  labels:
+    app: minibot
+data:
+  config.yaml: |
+    rtds:
+      endpoint: "wss://ws-live-data.polymarket.com"
+      ping_interval_sec: 5
+      reconnect_delay_sec: 2
+      subscribe_topics:
+        - market: "0x123abc"  # Replace with actual market IDs
+
+    monitor:
+      endpoint: "ws://monitor:8080/metrics"
+      buffer_size: 1000
+      reconnect_delay_sec: 1
+
+    risk:
+      policy_file: "/app/policies/production.yaml"
+
+    logging:
+      level: "info"
+      format: "json"
+---
+# Risk policies configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: risk-policies
+  namespace: ag-botkit
+  labels:
+    app: ag-botkit
+    component: risk
+data:
+  production.yaml: |
+    policies:
+      - type: PositionLimit
+        market_id: null  # Global limit
+        max_size: 10000.0
+
+      - type: InventoryLimit
+        max_value_usd: 100000.0
+
+      - type: KillSwitch
+        enabled: false
+
+  example.yaml: |
+    policies:
+      - type: PositionLimit
+        market_id: "0x123abc"
+        max_size: 1000.0
+
+      - type: InventoryLimit
+        max_value_usd: 10000.0
+
+      - type: KillSwitch
+        enabled: false
+---
+# TimescaleDB initialization scripts (placeholder)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: timescale-init-scripts
+  namespace: ag-botkit
+  labels:
+    app: timescaledb
+data:
+  01-create-extensions.sql: |
+    -- Enable TimescaleDB extension
+    CREATE EXTENSION IF NOT EXISTS timescaledb;
+
+  02-create-schemas.sql: |
+    -- Placeholder for storage layer schemas
+    -- Will be populated by storage-layer agent
+
+    -- Metrics hypertable (example structure)
+    CREATE TABLE IF NOT EXISTS metrics (
+        timestamp TIMESTAMPTZ NOT NULL,
+        metric_name TEXT NOT NULL,
+        value DOUBLE PRECISION NOT NULL,
+        labels JSONB
+    );
+
+    -- Create hypertable if table exists and is not already a hypertable
+    DO $$
+    BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM timescaledb_information.hypertables
+            WHERE hypertable_name = 'metrics'
+        ) THEN
+            PERFORM create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);
+        END IF;
+    END $$;
+
+    -- Create indexes
+    CREATE INDEX IF NOT EXISTS idx_metrics_name_time ON metrics (metric_name, timestamp DESC);
+    CREATE INDEX IF NOT EXISTS idx_metrics_labels ON metrics USING GIN (labels);
+
+  03-retention-policies.sql: |
+    -- Set retention policies
+    -- Keep raw metrics for 90 days
+    SELECT add_retention_policy('metrics', INTERVAL '90 days', if_not_exists => TRUE);
+
+    -- Compression after 7 days
+    SELECT add_compression_policy('metrics', INTERVAL '7 days', if_not_exists => TRUE);
+---
+# Monitor web assets (if not built into image)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitor-web-assets
+  namespace: ag-botkit
+  labels:
+    app: monitor
+data:
+  # Placeholder - web assets should be in Docker image
+  # This ConfigMap can be used to override specific files
+  README.txt: |
+    Web assets are built into the Docker image.
+    This ConfigMap can be used for runtime overrides.

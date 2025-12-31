@@ -1,0 +1,196 @@
+name: CI - Build and Test
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  lint-rust:
+    name: Lint Rust Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache"
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+
+  test-rust:
+    name: Test Rust Components
+    runs-on: ubuntu-latest
+    needs: lint-rust
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache"
+
+      - name: Run risk library tests
+        run: |
+          cd risk
+          cargo test --all-features
+
+      - name: Run minibot tests
+        run: |
+          cd examples/minibot
+          cargo test --all-features
+        env:
+          DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/test_db
+
+  test-core-c:
+    name: Test C Core Library
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential valgrind
+
+      - name: Build core library
+        run: |
+          cd core
+          make clean
+          make
+
+      - name: Run core tests
+        run: |
+          cd core
+          make test
+
+      - name: Check for memory leaks
+        run: |
+          cd core
+          make valgrind || true  # Continue on failure, just warn
+
+  test-go:
+    name: Test Go Monitor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('monitor/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Download dependencies
+        run: |
+          cd monitor
+          go mod download
+
+      - name: Run tests
+        run: |
+          cd monitor
+          go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./monitor/coverage.txt
+          flags: monitor
+
+  build-check:
+    name: Build All Components
+    runs-on: ubuntu-latest
+    needs: [test-rust, test-core-c, test-go]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: "rust-cache"
+
+      - name: Build all
+        run: make all
+
+      - name: Verify build artifacts
+        run: |
+          # Check core library
+          test -f core/lib/libag_core.a
+          # Check monitor binary
+          test -f monitor/bin/monitor
+          # Check risk library
+          test -f risk/target/release/libag_risk.rlib
+          # Check minibot binary
+          test -f examples/minibot/target/release/minibot
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run security audit
+        run: cargo audit --deny warnings

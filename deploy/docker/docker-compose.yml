@@ -1,0 +1,131 @@
+version: '3.8'
+
+# Local development deployment for ag-botkit
+# Usage: cd deploy/docker && docker-compose up
+
+services:
+  # TimescaleDB for metrics and execution history
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: ag-timescaledb
+    environment:
+      POSTGRES_DB: ag_botkit
+      POSTGRES_USER: agbot
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme_dev_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - timescale-data:/var/lib/postgresql/data
+      # Mount schema initialization scripts (when storage layer is implemented)
+      # - ../../storage/schemas:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agbot -d ag_botkit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - ag-network
+    restart: unless-stopped
+
+  # Monitor dashboard (Go web server)
+  monitor:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.monitor
+    container_name: ag-monitor
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=info
+      - DATABASE_URL=postgresql://agbot:${DB_PASSWORD:-changeme_dev_password}@timescaledb:5432/ag_botkit
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - ag-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # Minibot (Polymarket RTDS demo)
+  minibot:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.minibot
+    container_name: ag-minibot
+    environment:
+      - RUST_LOG=info
+      - MONITOR_URL=ws://monitor:8080/metrics
+    depends_on:
+      monitor:
+        condition: service_healthy
+    networks:
+      - ag-network
+    restart: unless-stopped
+    # Override config via volume mount for local development
+    volumes:
+      - ../../examples/minibot/config.yaml:/app/config.yaml:ro
+      - ../../risk/policies:/app/policies:ro
+
+  # Prometheus (metrics collection)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ag-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ../../infra/monitoring/prometheus/config.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - ag-network
+    restart: unless-stopped
+    depends_on:
+      - monitor
+      - minibot
+
+  # Grafana (visualization)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ag-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - ../../infra/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - ag-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+networks:
+  ag-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  timescale-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local

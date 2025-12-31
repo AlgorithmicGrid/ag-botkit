@@ -1,0 +1,71 @@
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+!README.md
+docs/
+ROADMAP*.md
+MVP_*.md
+RTDS_*.md
+
+# Build artifacts
+target/
+**/target/
+bin/
+**/bin/
+lib/
+**/lib/*.a
+*.o
+*.so
+*.dylib
+
+# Rust
+**/*.rs.bk
+**/Cargo.lock
+
+# Go
+go.sum
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test and coverage
+**/tests/
+**/*_test.go
+*.test
+coverage.txt
+
+# CI/CD (shouldn't be in container)
+.github/
+.claude/
+
+# Deployment files (don't need these in images)
+deploy/
+infra/
+k8s/
+terraform/
+
+# Development scripts
+scripts/
+run_local.sh
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Environment files (secrets should be injected)
+.env
+.env.*
+*.pem
+*.key
+credentials.json

@@ -1,0 +1,60 @@
+[package]
+name = "ag-exec"
+version = "0.1.0"
+edition = "2021"
+authors = ["ag-botkit contributors"]
+description = "Execution gateway for order placement on Polymarket CLOB and other exchanges"
+license = "MIT"
+
+[lib]
+name = "ag_exec"
+path = "src/lib.rs"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.35", features = ["full"] }
+async-trait = "0.1"
+thiserror = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# HTTP client for API calls
+reqwest = { version = "0.11", features = ["json", "rustls-tls"], default-features = false }
+
+# WebSocket support
+tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
+futures-util = "0.3"
+
+# Rate limiting
+governor = "0.6"
+nonzero_ext = "0.3"
+
+# Time and date handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# UUID generation for order IDs
+uuid = { version = "1.6", features = ["v4", "serde"] }
+
+# Risk engine integration
+ag-risk = { path = "../risk" }
+
+# Cryptography for API signing
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"
+base64 = "0.21"
+
+# URL handling
+url = "2.5"
+
+# Dotenv for environment variables
+dotenv = "0.15"
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockito = "1.2"
+wiremock = "0.6"

@@ -1,0 +1,36 @@
+# Standalone Dockerfile for risk library (for testing/development)
+# This is not typically deployed as a service, but useful for CI/CD
+
+FROM rust:1.75-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache musl-dev make gcc
+
+# Copy manifests
+COPY risk/Cargo.toml risk/Cargo.lock ./
+
+# Build dependencies (cached layer)
+RUN mkdir -p src && echo "fn main() {}" > src/lib.rs && cargo build --release && rm -rf src
+
+# Copy source
+COPY risk/src ./src
+
+# Build library
+RUN cargo build --release --locked
+
+# Test image (can be used in CI)
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates
+
+WORKDIR /app
+
+# Copy built artifacts
+COPY --from=builder /build/target/release/libag_risk.* /app/
+
+# Copy policies for testing
+COPY risk/policies/ /app/policies/
+
+CMD ["echo", "Risk library built successfully. Use this image for testing."]
